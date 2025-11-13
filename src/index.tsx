@@ -18,6 +18,7 @@ import { root } from "./pages/root";
 import { upload } from "./pages/upload";
 import { user } from "./pages/user";
 import { healthcheck } from "./pages/healthcheck";
+import { oidc } from "./pages/oidc";
 
 export const uploadsDir = "./data/uploads/";
 export const outputDir = "./data/output/";
@@ -36,6 +37,7 @@ const app = new Elysia({
     }),
   )
   .use(user)
+  .use(oidc)
   .use(root)
   .use(upload)
   .use(history)
