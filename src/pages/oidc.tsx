@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { Elysia, t } from "elysia";
+import { Elysia } from "elysia";
 import { userService } from "./user";
 import db from "../db/db";
 import { User } from "../db/types";
@@ -74,8 +74,8 @@ export const oidc = new Elysia()
 
       let sessionData: { state: string; nonce: string; codeVerifier: string; timestamp: number };
       try {
-        sessionData = JSON.parse(oidc_session.value);
-      } catch (error) {
+        sessionData = JSON.parse(String(oidc_session.value));
+      } catch {
         set.status = 400;
         return {
           message: "Invalid OIDC session data.",
