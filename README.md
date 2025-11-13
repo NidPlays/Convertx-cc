@@ -83,10 +83,14 @@ If you get unable to open database file run `chown -R $USER:$USER path` on the p
 
 ### OIDC Authentication (Optional)
 
-ConvertX supports OpenID Connect (OIDC) authentication, allowing integration with providers like PocketID, Keycloak, Authentik, and others.
+ConvertX supports OpenID Connect (OIDC) authentication with both public and confidential clients, allowing integration with providers like PocketID, Keycloak, Authentik, and others.
+
+#### Public Client Mode (Recommended for most deployments)
+
+Public clients use PKCE (Proof Key for Code Exchange) instead of client secrets, making them suitable for environments where secrets cannot be safely stored.
 
 ```yml
-# docker-compose.yml with OIDC
+# docker-compose.yml with OIDC (Public Client)
 services:
   convertx:
     image: ghcr.io/c4illin/convertx
@@ -96,10 +100,9 @@ services:
       - "3000:3000"
     environment:
       - JWT_SECRET=aLongAndSecretStringUsedToSignTheJSONWebToken1234
-      # OIDC Configuration
+      # OIDC Configuration (Public Client - No Secret)
       - OIDC_ISSUER_URL=https://your-pocketid.example.com
       - OIDC_CLIENT_ID=your-client-id
-      - OIDC_CLIENT_SECRET=your-client-secret
       - OIDC_REDIRECT_URI=https://convertx.example.com/callback/oidc
       - OIDC_BUTTON_TEXT=Sign in with PocketID
       # - OIDC_ONLY=true # Uncomment to disable email/password login
@@ -107,11 +110,37 @@ services:
       - ./data:/app/data
 ```
 
+#### Confidential Client Mode
+
+If your OIDC provider requires a client secret, you can provide it:
+
+```yml
+# docker-compose.yml with OIDC (Confidential Client)
+services:
+  convertx:
+    image: ghcr.io/c4illin/convertx
+    container_name: convertx
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - JWT_SECRET=aLongAndSecretStringUsedToSignTheJSONWebToken1234
+      # OIDC Configuration (Confidential Client - With Secret)
+      - OIDC_ISSUER_URL=https://your-provider.example.com
+      - OIDC_CLIENT_ID=your-client-id
+      - OIDC_CLIENT_SECRET=your-client-secret
+      - OIDC_REDIRECT_URI=https://convertx.example.com/callback/oidc
+    volumes:
+      - ./data:/app/data
+```
+
 **OIDC Setup Notes:**
+- **PKCE is always used** for enhanced security, regardless of client type
 - Users are auto-provisioned on first OIDC login
 - If a user with the same email exists, the OIDC identity is linked to the existing account
 - Set `OIDC_ONLY=true` to disable traditional email/password authentication
 - The `OIDC_REDIRECT_URI` must be registered in your OIDC provider's client configuration
+- For public clients, ensure your OIDC provider allows the Authorization Code flow with PKCE
 
 ### Environment variables
 
@@ -132,7 +161,7 @@ All are optional, JWT_SECRET is recommended to be set.
 | MAX_CONVERT_PROCESS          | 0                                                  | Maximum number of concurrent conversion processes allowed. Set to 0 for unlimited.                                        |
 | OIDC_ISSUER_URL              |                                                    | OIDC provider issuer URL (e.g., https://your-pocketid.example.com). Setting this enables OIDC authentication              |
 | OIDC_CLIENT_ID               |                                                    | OAuth2/OIDC client ID from your OIDC provider                                                                             |
-| OIDC_CLIENT_SECRET           |                                                    | OAuth2/OIDC client secret from your OIDC provider                                                                         |
+| OIDC_CLIENT_SECRET           |                                                    | OAuth2/OIDC client secret (optional for public clients, PKCE is used automatically)                                       |
 | OIDC_REDIRECT_URI            |                                                    | OIDC callback URL (e.g., https://convertx.example.com/callback/oidc)                                                      |
 | OIDC_ONLY                    | false                                              | When true, disable traditional email/password login and only allow OIDC authentication                                    |
 | OIDC_BUTTON_TEXT             | Sign in with OIDC                                  | Customize the text shown on the OIDC login button                                                                         |
