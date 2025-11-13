@@ -20,7 +20,9 @@ export async function getOIDCConfig(): Promise<client.Configuration | null> {
 
   try {
     const issuerUrl = new URL(OIDC_ISSUER_URL);
-    oidcConfig = await client.discovery(issuerUrl, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET);
+    // Support both public clients (no secret) and confidential clients (with secret)
+    const clientAuth = OIDC_CLIENT_SECRET ? OIDC_CLIENT_SECRET : undefined;
+    oidcConfig = await client.discovery(issuerUrl, OIDC_CLIENT_ID, clientAuth);
     return oidcConfig;
   } catch (error) {
     console.error("Failed to discover OIDC configuration:", error);
@@ -28,27 +30,40 @@ export async function getOIDCConfig(): Promise<client.Configuration | null> {
   }
 }
 
-export async function generateAuthorizationUrl(state: string, nonce: string): Promise<string | null> {
+export async function generateAuthorizationUrl(
+  state: string,
+  nonce: string,
+): Promise<{ authUrl: string; codeVerifier: string } | null> {
   const config = await getOIDCConfig();
   if (!config) {
     return null;
   }
+
+  // Generate PKCE code verifier for public client security
+  const codeVerifier = client.randomPKCECodeVerifier();
+  const codeChallenge = await client.calculatePKCECodeChallenge(codeVerifier);
 
   const parameters: Record<string, string> = {
     redirect_uri: OIDC_REDIRECT_URI,
     scope: "openid email profile",
     state,
     nonce,
+    code_challenge: codeChallenge,
+    code_challenge_method: "S256",
   };
 
   const authUrl = client.buildAuthorizationUrl(config, parameters);
-  return authUrl.href;
+  return {
+    authUrl: authUrl.href,
+    codeVerifier,
+  };
 }
 
 export async function handleCallback(
   currentUrl: URL,
   expectedState: string,
   expectedNonce: string,
+  pkceCodeVerifier: string,
 ): Promise<{ email: string; sub: string } | null> {
   const config = await getOIDCConfig();
   if (!config) {
@@ -59,7 +74,7 @@ export async function handleCallback(
     const tokens = await client.authorizationCodeGrant(config, currentUrl, {
       expectedState,
       expectedNonce,
-      pkceCodeVerifier: undefined,
+      pkceCodeVerifier,
     });
 
     const claims = tokens.claims();

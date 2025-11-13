@@ -28,7 +28,7 @@ export const UNAUTHENTICATED_USER_SHARING =
 export const OIDC_ENABLED = process.env.OIDC_ISSUER_URL ? true : false;
 export const OIDC_ISSUER_URL = process.env.OIDC_ISSUER_URL || "";
 export const OIDC_CLIENT_ID = process.env.OIDC_CLIENT_ID || "";
-export const OIDC_CLIENT_SECRET = process.env.OIDC_CLIENT_SECRET || "";
+export const OIDC_CLIENT_SECRET = process.env.OIDC_CLIENT_SECRET || ""; // Optional for public clients
 export const OIDC_REDIRECT_URI = process.env.OIDC_REDIRECT_URI || "";
 export const OIDC_ONLY = process.env.OIDC_ONLY?.toLowerCase() === "true" || false;
 export const OIDC_BUTTON_TEXT = process.env.OIDC_BUTTON_TEXT || "Sign in with OIDC";

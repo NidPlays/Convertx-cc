@@ -24,24 +24,23 @@ export const oidc = new Elysia()
     const state = randomUUID();
     const nonce = randomUUID();
 
-    // Store state and nonce in a cookie for verification
-    const oidcSession = {
-      state,
-      nonce,
-      timestamp: Date.now(),
-    };
+    // Generate authorization URL with PKCE
+    const result = await generateAuthorizationUrl(state, nonce);
 
-    // We need to set this in a cookie
-    // For simplicity, we'll use a temporary approach with query params
-    // In production, you'd want to use a more secure session store
-    const authUrl = await generateAuthorizationUrl(state, nonce);
-
-    if (!authUrl) {
+    if (!result) {
       set.status = 500;
       return {
         message: "Failed to generate OIDC authorization URL.",
       };
     }
+
+    // Store state, nonce, and PKCE code_verifier in a secure httpOnly cookie
+    const oidcSession = {
+      state,
+      nonce,
+      codeVerifier: result.codeVerifier,
+      timestamp: Date.now(),
+    };
 
     // Store the session in a cookie
     const sessionCookie = set.cookie?.oidc_session;
@@ -53,7 +52,7 @@ export const oidc = new Elysia()
       sessionCookie.maxAge = 600; // 10 minutes
     }
 
-    return redirect(authUrl, 302);
+    return redirect(result.authUrl, 302);
   })
   .get(
     "/callback/oidc",
@@ -73,7 +72,7 @@ export const oidc = new Elysia()
         };
       }
 
-      let sessionData: { state: string; nonce: string; timestamp: number };
+      let sessionData: { state: string; nonce: string; codeVerifier: string; timestamp: number };
       try {
         sessionData = JSON.parse(oidc_session.value);
       } catch (error) {
@@ -93,7 +92,12 @@ export const oidc = new Elysia()
       }
 
       const currentUrl = new URL(request.url);
-      const result = await handleCallback(currentUrl, sessionData.state, sessionData.nonce);
+      const result = await handleCallback(
+        currentUrl,
+        sessionData.state,
+        sessionData.nonce,
+        sessionData.codeVerifier,
+      );
 
       // Clear the OIDC session cookie
       oidc_session.remove();
