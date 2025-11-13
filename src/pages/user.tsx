@@ -324,7 +324,7 @@ export const user = new Elysia()
                     <a
                       href={`${WEBROOT}/login/oidc`}
                       role="button"
-                      class="w-full btn-primary text-center block"
+                      class="block w-full btn-primary text-center"
                     >
                       {OIDC_BUTTON_TEXT}
                     </a>
@@ -350,7 +350,7 @@ export const user = new Elysia()
 
       const existingUser = db.query("SELECT * FROM users WHERE email = ?").as(User).get(body.email);
 
-      if (!existingUser) {
+      if (!existingUser || !existingUser.password) {
         set.status = 403;
         return {
           message: "Invalid credentials.",
@@ -502,6 +502,13 @@ export const user = new Elysia()
           auth.remove();
         }
         return redirect(`${WEBROOT}/login`, 302);
+      }
+
+      if (!existingUser.password) {
+        set.status = 403;
+        return {
+          message: "OIDC users cannot update account via password authentication.",
+        };
       }
 
       const validPassword = await Bun.password.verify(body.password, existingUser.password);
