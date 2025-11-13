@@ -10,6 +10,9 @@ import {
   ALLOW_UNAUTHENTICATED,
   HIDE_HISTORY,
   HTTP_ALLOWED,
+  OIDC_BUTTON_TEXT,
+  OIDC_ENABLED,
+  OIDC_ONLY,
   WEBROOT,
 } from "../helpers/env";
 
@@ -127,7 +130,7 @@ export const user = new Elysia()
     );
   })
   .get("/register", ({ redirect }) => {
-    if (!ACCOUNT_REGISTRATION) {
+    if (!ACCOUNT_REGISTRATION || OIDC_ONLY) {
       return redirect(`${WEBROOT}/login`, 302);
     }
 
@@ -183,7 +186,7 @@ export const user = new Elysia()
   .post(
     "/register",
     async ({ body: { email, password }, set, redirect, jwt, cookie: { auth } }) => {
-      if (!ACCOUNT_REGISTRATION && !FIRST_RUN) {
+      if ((!ACCOUNT_REGISTRATION && !FIRST_RUN) || OIDC_ONLY) {
         return redirect(`${WEBROOT}/login`, 302);
       }
 
@@ -269,44 +272,64 @@ export const user = new Elysia()
               `}
             >
               <article class="article">
-                <form method="post" class="flex flex-col gap-4">
-                  <fieldset class="mb-4 flex flex-col gap-4">
-                    <label class="flex flex-col gap-1">
-                      Email
-                      <input
-                        type="email"
-                        name="email"
-                        class="rounded-sm bg-neutral-800 p-3"
-                        placeholder="Email"
-                        autocomplete="email"
-                        required
-                      />
-                    </label>
-                    <label class="flex flex-col gap-1">
-                      Password
-                      <input
-                        type="password"
-                        name="password"
-                        class="rounded-sm bg-neutral-800 p-3"
-                        placeholder="Password"
-                        autocomplete="current-password"
-                        required
-                      />
-                    </label>
-                  </fieldset>
-                  <div class="flex flex-row gap-4">
-                    {ACCOUNT_REGISTRATION ? (
-                      <a
-                        href={`${WEBROOT}/register`}
-                        role="button"
-                        class="w-full btn-secondary text-center"
-                      >
-                        Register
-                      </a>
+                {!OIDC_ONLY ? (
+                  <form method="post" class="flex flex-col gap-4">
+                    <fieldset class="mb-4 flex flex-col gap-4">
+                      <label class="flex flex-col gap-1">
+                        Email
+                        <input
+                          type="email"
+                          name="email"
+                          class="rounded-sm bg-neutral-800 p-3"
+                          placeholder="Email"
+                          autocomplete="email"
+                          required
+                        />
+                      </label>
+                      <label class="flex flex-col gap-1">
+                        Password
+                        <input
+                          type="password"
+                          name="password"
+                          class="rounded-sm bg-neutral-800 p-3"
+                          placeholder="Password"
+                          autocomplete="current-password"
+                          required
+                        />
+                      </label>
+                    </fieldset>
+                    <div class="flex flex-row gap-4">
+                      {ACCOUNT_REGISTRATION ? (
+                        <a
+                          href={`${WEBROOT}/register`}
+                          role="button"
+                          class="w-full btn-secondary text-center"
+                        >
+                          Register
+                        </a>
+                      ) : null}
+                      <input type="submit" value="Login" class="w-full btn-primary" />
+                    </div>
+                  </form>
+                ) : null}
+                {OIDC_ENABLED ? (
+                  <>
+                    {!OIDC_ONLY ? (
+                      <div class="my-4 flex items-center gap-4">
+                        <div class="h-px flex-1 bg-neutral-700"></div>
+                        <span class="text-neutral-400">or</span>
+                        <div class="h-px flex-1 bg-neutral-700"></div>
+                      </div>
                     ) : null}
-                    <input type="submit" value="Login" class="w-full btn-primary" />
-                  </div>
-                </form>
+                    <a
+                      href={`${WEBROOT}/login/oidc`}
+                      role="button"
+                      class="w-full btn-primary text-center block"
+                    >
+                      {OIDC_BUTTON_TEXT}
+                    </a>
+                  </>
+                ) : null}
               </article>
             </main>
           </>
@@ -318,6 +341,13 @@ export const user = new Elysia()
   .post(
     "/login",
     async function handler({ body, set, redirect, jwt, cookie: { auth } }) {
+      if (OIDC_ONLY) {
+        set.status = 403;
+        return {
+          message: "Traditional login is disabled. Please use OIDC authentication.",
+        };
+      }
+
       const existingUser = db.query("SELECT * FROM users WHERE email = ?").as(User).get(body.email);
 
       if (!existingUser) {
