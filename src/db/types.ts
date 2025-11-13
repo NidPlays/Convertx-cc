@@ -19,5 +19,7 @@ export class Jobs {
 export class User {
   id!: number;
   email!: string;
-  password!: string;
+  password!: string | null;
+  oidc_sub!: string | null;
+  oidc_provider!: string | null;
 }
