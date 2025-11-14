@@ -11,7 +11,7 @@ export default tseslint.config(
     plugins: {
       "better-tailwindcss": eslintPluginBetterTailwindcss,
     },
-    ignores: ["**/node_modules/**", "eslint.config.ts", "test-oidc-local.ts"],
+    ignores: ["**/node_modules/**", "**/dist/**", "eslint.config.ts", "test-oidc-local.ts"],
     languageOptions: {
       parser: eslintParserTypeScript,
       parserOptions: {
