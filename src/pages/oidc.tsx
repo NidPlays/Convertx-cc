@@ -43,6 +43,13 @@ export const oidc = new Elysia()
     };
 
     // Store the session in a cookie using set.cookie
+    if (!cookie.oidc_session) {
+      set.status = 500;
+      return {
+        message: "Cookie setup failed. Please ensure cookies are enabled.",
+      };
+    }
+
     cookie.oidc_session.set({
       value: JSON.stringify(oidcSession),
       httpOnly: true,
@@ -84,7 +91,9 @@ export const oidc = new Elysia()
 
       // Verify session hasn't expired (10 minutes)
       if (Date.now() - sessionData.timestamp > 600000) {
-        cookie.oidc_session.remove();
+        if (cookie.oidc_session) {
+          cookie.oidc_session.remove();
+        }
         set.status = 400;
         return {
           message: "OIDC session expired.",
@@ -100,7 +109,9 @@ export const oidc = new Elysia()
       );
 
       // Clear the OIDC session cookie
-      cookie.oidc_session.remove();
+      if (cookie.oidc_session) {
+        cookie.oidc_session.remove();
+      }
 
       if (!result) {
         set.status = 401;
