@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  convertx:
+    image: ghcr.io/nidplays/convertx-cc:latest
+    container_name: convertx
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      # Persist database
+      - ./data:/app/data
+    environment:
+      # OIDC Configuration (required for PocketID/OIDC authentication)
+      OIDC_ISSUER_URL: https://pocketid.phoenixwired.com
+      OIDC_CLIENT_ID: your-client-id-here
+      OIDC_REDIRECT_URI: https://yourdomain.com/callback/oidc
+      OIDC_BUTTON_TEXT: Sign in with PocketID
+
+      # Set to true to disable traditional email/password login
+      OIDC_ONLY: "true"
+
+      # Security - set to false in production with HTTPS
+      HTTP_ALLOWED: "false"
+
+      # Optional: JWT secret (auto-generated if not provided)
+      # JWT_SECRET: your-secret-here
+
+      # Optional: Other settings
+      # ACCOUNT_REGISTRATION: "false"
+      # ALLOW_UNAUTHENTICATED: "false"
+      # HIDE_HISTORY: "false"
+      # WEBROOT: ""
+      # LANGUAGE: "en"
+      # MAX_CONVERT_PROCESS: "0"
+      # AUTO_DELETE_EVERY_N_HOURS: "24"
