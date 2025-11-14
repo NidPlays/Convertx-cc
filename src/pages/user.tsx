@@ -18,6 +18,10 @@ import {
 
 export let FIRST_RUN = db.query("SELECT * FROM users").get() === null || false;
 
+export function setFirstRunComplete() {
+  FIRST_RUN = false;
+}
+
 export const userService = new Elysia({ name: "user/service" })
   .use(
     jwt({
@@ -215,7 +219,7 @@ export const user = new Elysia()
       }
 
       if (FIRST_RUN) {
-        FIRST_RUN = false;
+        setFirstRunComplete();
       }
 
       const existingUser = await db.query("SELECT * FROM users WHERE email = ?").get(email);

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { Elysia } from "elysia";
-import { userService } from "./user";
+import { Elysia, t } from "elysia";
+import { FIRST_RUN, setFirstRunComplete, userService } from "./user";
 import db from "../db/db";
 import { User } from "../db/types";
 import { generateAuthorizationUrl, handleCallback } from "../helpers/oidc";
@@ -8,7 +8,9 @@ import { HTTP_ALLOWED, OIDC_ENABLED, WEBROOT } from "../helpers/env";
 
 export const oidc = new Elysia()
   .use(userService)
-  .get("/login/oidc", async ({ redirect, cookie, set }) => {
+  .get(
+    "/login/oidc",
+    async ({ redirect, cookie, set }) => {
     if (!OIDC_ENABLED) {
       set.status = 404;
       return {
@@ -43,15 +45,8 @@ export const oidc = new Elysia()
     };
 
     // Store the session in a cookie using set.cookie
-    if (!cookie.oidc_session) {
-      set.status = 500;
-      return {
-        message: "Cookie setup failed. Please ensure cookies are enabled.",
-      };
-    }
-
     cookie.oidc_session.set({
-      value: JSON.stringify(oidcSession),
+      value: oidcSession,
       httpOnly: true,
       secure: !HTTP_ALLOWED,
       sameSite: "lax",
@@ -60,8 +55,24 @@ export const oidc = new Elysia()
     });
 
     return redirect(result.authUrl, 302);
-  })
-  .get("/callback/oidc", async ({ request, redirect, set, jwt, cookie }) => {
+    },
+    {
+      cookie: t.Cookie({
+        auth: t.Optional(t.String()),
+        oidc_session: t.Optional(
+          t.Object({
+            state: t.String(),
+            nonce: t.String(),
+            codeVerifier: t.String(),
+            timestamp: t.Number(),
+          }),
+        ),
+      }),
+    },
+  )
+  .get(
+    "/callback/oidc",
+    async ({ request, redirect, set, jwt, cookie }) => {
     if (!OIDC_ENABLED) {
       set.status = 404;
       return {
@@ -77,13 +88,8 @@ export const oidc = new Elysia()
       };
     }
 
-    // Elysia automatically parses JSON cookies, so we can use the value directly
-    const sessionData = cookie.oidc_session.value as {
-      state: string;
-      nonce: string;
-      codeVerifier: string;
-      timestamp: number;
-    };
+    // Elysia automatically parses cookies with the schema we defined
+    const sessionData = cookie.oidc_session.value;
 
     if (!sessionData.state || !sessionData.nonce || !sessionData.codeVerifier) {
       set.status = 400;
@@ -146,6 +152,9 @@ export const oidc = new Elysia()
         user = db.query("SELECT * FROM users WHERE id = ?").as(User).get(existingUser.id);
       } else {
         // Create new user
+        if (FIRST_RUN) {
+          setFirstRunComplete();
+        }
         db.query(
           "INSERT INTO users (email, password, oidc_sub, oidc_provider) VALUES (?, NULL, ?, ?)",
         ).run(result.email, result.sub, "oidc");
@@ -185,4 +194,18 @@ export const oidc = new Elysia()
     });
 
     return redirect(`${WEBROOT}/`, 302);
-  });
+    },
+    {
+      cookie: t.Cookie({
+        auth: t.Optional(t.String()),
+        oidc_session: t.Optional(
+          t.Object({
+            state: t.String(),
+            nonce: t.String(),
+            codeVerifier: t.String(),
+            timestamp: t.Number(),
+          }),
+        ),
+      }),
+    },
+  );
