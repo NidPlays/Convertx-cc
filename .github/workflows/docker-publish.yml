@@ -3,12 +3,12 @@ name: Docker Build and Publish
 on:
   push:
     branches:
-      - main
+      - deploy
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
   pull_request:
     branches:
-      - main
+      - deploy
 
 env:
   REGISTRY: ghcr.io
