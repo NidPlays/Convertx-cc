@@ -9,7 +9,7 @@ import {
 
 let oidcConfig: client.Configuration | null = null;
 
-export async function getOIDCConfig(): Promise<client.Configuration | null> {
+async function getOIDCConfig(): Promise<client.Configuration | null> {
   if (!OIDC_ENABLED) {
     return null;
   }

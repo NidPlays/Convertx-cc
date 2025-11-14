@@ -38,7 +38,9 @@ async function testOIDC() {
     console.log(`   Issuer: ${config.serverMetadata().issuer}`);
     console.log(`   Auth Endpoint: ${config.serverMetadata().authorization_endpoint}`);
     console.log(`   Token Endpoint: ${config.serverMetadata().token_endpoint}`);
-    console.log(`   PKCE Methods: ${config.serverMetadata().code_challenge_methods_supported?.join(", ")}\n`);
+    console.log(
+      `   PKCE Methods: ${config.serverMetadata().code_challenge_methods_supported?.join(", ")}\n`,
+    );
 
     // Test 2: Generate Authorization URL with PKCE
     console.log("2️⃣ Generating Authorization URL with PKCE...");
