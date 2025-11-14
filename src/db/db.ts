@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS jobs (
   num_files INTEGER DEFAULT 0,
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
-PRAGMA user_version = 1;`);
+PRAGMA user_version = 2;`);
 }
 
 const dbVersion = (db.query("PRAGMA user_version").get() as { user_version?: number }).user_version;

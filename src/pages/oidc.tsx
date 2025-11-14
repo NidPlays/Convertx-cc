@@ -8,7 +8,7 @@ import { HTTP_ALLOWED, OIDC_ENABLED, WEBROOT } from "../helpers/env";
 
 export const oidc = new Elysia()
   .use(userService)
-  .get("/login/oidc", async ({ redirect, cookie: { auth }, set }) => {
+  .get("/login/oidc", async ({ redirect, cookie, set }) => {
     if (!OIDC_ENABLED) {
       set.status = 404;
       return {
@@ -17,7 +17,7 @@ export const oidc = new Elysia()
     }
 
     // Check if already logged in
-    if (auth?.value) {
+    if (cookie.auth?.value) {
       return redirect(`${WEBROOT}/`, 302);
     }
 
@@ -42,21 +42,21 @@ export const oidc = new Elysia()
       timestamp: Date.now(),
     };
 
-    // Store the session in a cookie
-    const sessionCookie = set.cookie?.oidc_session;
-    if (sessionCookie) {
-      sessionCookie.value = JSON.stringify(oidcSession);
-      sessionCookie.httpOnly = true;
-      sessionCookie.secure = !HTTP_ALLOWED;
-      sessionCookie.sameSite = "lax";
-      sessionCookie.maxAge = 600; // 10 minutes
-    }
+    // Store the session in a cookie using set.cookie
+    cookie.oidc_session.set({
+      value: JSON.stringify(oidcSession),
+      httpOnly: true,
+      secure: !HTTP_ALLOWED,
+      sameSite: "lax",
+      maxAge: 600, // 10 minutes
+      path: "/",
+    });
 
     return redirect(result.authUrl, 302);
   })
   .get(
     "/callback/oidc",
-    async ({ request, redirect, set, jwt, cookie: { auth, oidc_session } }) => {
+    async ({ request, redirect, set, jwt, cookie }) => {
       if (!OIDC_ENABLED) {
         set.status = 404;
         return {
@@ -65,17 +65,17 @@ export const oidc = new Elysia()
       }
 
       // Get the session data from cookie
-      if (!oidc_session?.value) {
+      if (!cookie.oidc_session?.value) {
         set.status = 400;
         return {
           message: "Missing OIDC session data.",
         };
       }
 
-      let sessionData: { state: string; nonce: string; codeVerifier: string; timestamp: number };
-      try {
-        sessionData = JSON.parse(String(oidc_session.value));
-      } catch {
+      // Elysia automatically parses JSON cookies, so we can use the value directly
+      const sessionData = cookie.oidc_session.value as { state: string; nonce: string; codeVerifier: string; timestamp: number };
+
+      if (!sessionData.state || !sessionData.nonce || !sessionData.codeVerifier) {
         set.status = 400;
         return {
           message: "Invalid OIDC session data.",
@@ -84,7 +84,7 @@ export const oidc = new Elysia()
 
       // Verify session hasn't expired (10 minutes)
       if (Date.now() - sessionData.timestamp > 600000) {
-        oidc_session.remove();
+        cookie.oidc_session.remove();
         set.status = 400;
         return {
           message: "OIDC session expired.",
@@ -100,7 +100,7 @@ export const oidc = new Elysia()
       );
 
       // Clear the OIDC session cookie
-      oidc_session.remove();
+      cookie.oidc_session.remove();
 
       if (!result) {
         set.status = 401;
@@ -153,7 +153,7 @@ export const oidc = new Elysia()
         id: String(user.id),
       });
 
-      if (!auth) {
+      if (!cookie.auth) {
         set.status = 500;
         return {
           message: "No auth cookie, perhaps your browser is blocking cookies.",
@@ -161,12 +161,12 @@ export const oidc = new Elysia()
       }
 
       // Set auth cookie
-      auth.set({
+      cookie.auth.set({
         value: accessToken,
         httpOnly: true,
         secure: !HTTP_ALLOWED,
         maxAge: 60 * 60 * 24 * 7,
-        sameSite: "strict",
+        sameSite: "lax", // Use "lax" for OIDC to allow cross-site navigation from OAuth provider
       });
 
       return redirect(`${WEBROOT}/`, 302);

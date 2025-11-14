@@ -83,34 +83,58 @@ export const user = new Elysia()
         >
           <h1 class="my-8 text-3xl">Welcome to ConvertX!</h1>
           <article class="article p-0">
-            <header class="w-full bg-neutral-800 p-4">Create your account</header>
-            <form method="post" action={`${WEBROOT}/register`} class="p-4">
-              <fieldset class="mb-4 flex flex-col gap-4">
-                <label class="flex flex-col gap-1">
-                  Email
-                  <input
-                    type="email"
-                    name="email"
-                    class="rounded-sm bg-neutral-800 p-3"
-                    placeholder="Email"
-                    autocomplete="email"
-                    required
-                  />
-                </label>
-                <label class="flex flex-col gap-1">
-                  Password
-                  <input
-                    type="password"
-                    name="password"
-                    class="rounded-sm bg-neutral-800 p-3"
-                    placeholder="Password"
-                    autocomplete="current-password"
-                    required
-                  />
-                </label>
-              </fieldset>
-              <input type="submit" value="Create account" class="btn-primary" />
-            </form>
+            <header class="w-full bg-neutral-800 p-4">
+              {OIDC_ONLY ? "Sign in to get started" : "Create your account"}
+            </header>
+            <div class="p-4">
+              {!OIDC_ONLY ? (
+                <form method="post" action={`${WEBROOT}/register`} class="flex flex-col gap-4">
+                  <fieldset class="mb-4 flex flex-col gap-4">
+                    <label class="flex flex-col gap-1">
+                      Email
+                      <input
+                        type="email"
+                        name="email"
+                        class="rounded-sm bg-neutral-800 p-3"
+                        placeholder="Email"
+                        autocomplete="email"
+                        required
+                      />
+                    </label>
+                    <label class="flex flex-col gap-1">
+                      Password
+                      <input
+                        type="password"
+                        name="password"
+                        class="rounded-sm bg-neutral-800 p-3"
+                        placeholder="Password"
+                        autocomplete="current-password"
+                        required
+                      />
+                    </label>
+                  </fieldset>
+                  <input type="submit" value="Create account" class="btn-primary" />
+                </form>
+              ) : null}
+              {OIDC_ENABLED ? (
+                <>
+                  {!OIDC_ONLY ? (
+                    <div class="my-4 flex items-center gap-4">
+                      <div class="h-px flex-1 bg-neutral-700"></div>
+                      <span class="text-neutral-400">or</span>
+                      <div class="h-px flex-1 bg-neutral-700"></div>
+                    </div>
+                  ) : null}
+                  <a
+                    href={`${WEBROOT}/login/oidc`}
+                    role="button"
+                    class="block w-full btn-primary text-center"
+                  >
+                    {OIDC_BUTTON_TEXT}
+                  </a>
+                </>
+              ) : null}
+            </div>
             <footer class="p-4">
               Report any issues on{" "}
               <a
@@ -231,7 +255,7 @@ export const user = new Elysia()
         httpOnly: true,
         secure: !HTTP_ALLOWED,
         maxAge: 60 * 60 * 24 * 7,
-        sameSite: "strict",
+        sameSite: "lax",
       });
 
       return redirect(`${WEBROOT}/`, 302);
@@ -383,7 +407,7 @@ export const user = new Elysia()
         httpOnly: true,
         secure: !HTTP_ALLOWED,
         maxAge: 60 * 60 * 24 * 7,
-        sameSite: "strict",
+        sameSite: "lax",
       });
 
       return redirect(`${WEBROOT}/`, 302);
@@ -434,46 +458,66 @@ export const user = new Elysia()
               `}
             >
               <article class="article">
-                <form method="post" class="flex flex-col gap-4">
-                  <fieldset class="mb-4 flex flex-col gap-4">
-                    <label class="flex flex-col gap-1">
-                      Email
-                      <input
-                        type="email"
-                        name="email"
-                        class="rounded-sm bg-neutral-800 p-3"
-                        placeholder="Email"
-                        autocomplete="email"
-                        value={userData.email}
-                        required
-                      />
-                    </label>
-                    <label class="flex flex-col gap-1">
-                      Password (leave blank for unchanged)
-                      <input
-                        type="password"
-                        name="newPassword"
-                        class="rounded-sm bg-neutral-800 p-3"
-                        placeholder="Password"
-                        autocomplete="new-password"
-                      />
-                    </label>
-                    <label class="flex flex-col gap-1">
-                      Current Password
-                      <input
-                        type="password"
-                        name="password"
-                        class="rounded-sm bg-neutral-800 p-3"
-                        placeholder="Password"
-                        autocomplete="current-password"
-                        required
-                      />
-                    </label>
-                  </fieldset>
-                  <div role="group">
-                    <input type="submit" value="Update" class="w-full btn-primary" />
+                {userData.password === null ? (
+                  <div class="flex flex-col gap-4">
+                    <div class="rounded-sm bg-neutral-800 p-4">
+                      <p class="mb-2 font-semibold">Authentication Method</p>
+                      <p class="text-neutral-400">
+                        You are logged in via OIDC ({userData.oidc_provider}).
+                      </p>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                      <label class="font-semibold">Email</label>
+                      <p class="rounded-sm bg-neutral-800 p-3 text-neutral-400">
+                        {userData.email}
+                      </p>
+                      <p class="text-sm text-neutral-500">
+                        Your account is managed by your OIDC provider. You cannot change your email or password here.
+                      </p>
+                    </div>
                   </div>
-                </form>
+                ) : (
+                  <form method="post" class="flex flex-col gap-4">
+                    <fieldset class="mb-4 flex flex-col gap-4">
+                      <label class="flex flex-col gap-1">
+                        Email
+                        <input
+                          type="email"
+                          name="email"
+                          class="rounded-sm bg-neutral-800 p-3"
+                          placeholder="Email"
+                          autocomplete="email"
+                          value={userData.email}
+                          required
+                        />
+                      </label>
+                      <label class="flex flex-col gap-1">
+                        Password (leave blank for unchanged)
+                        <input
+                          type="password"
+                          name="newPassword"
+                          class="rounded-sm bg-neutral-800 p-3"
+                          placeholder="Password"
+                          autocomplete="new-password"
+                        />
+                      </label>
+                      <label class="flex flex-col gap-1">
+                        Current Password
+                        <input
+                          type="password"
+                          name="password"
+                          class="rounded-sm bg-neutral-800 p-3"
+                          placeholder="Password"
+                          autocomplete="current-password"
+                          required
+                        />
+                      </label>
+                    </fieldset>
+                    <div role="group">
+                      <input type="submit" value="Update" class="w-full btn-primary" />
+                    </div>
+                  </form>
+                )}
               </article>
             </main>
           </>
