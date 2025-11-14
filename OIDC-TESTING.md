@@ -14,14 +14,17 @@ This guide shows you how to test the OIDC integration with your PocketID instanc
 ## Quick Test
 
 1. **Test OIDC Discovery:**
+
    ```bash
    OIDC_ISSUER_URL=https://your-pocketid.example.com \
    OIDC_CLIENT_ID=your-client-id \
    bun test-oidc-local.ts
    ```
+
    This will verify your PocketID instance is accessible and generate a test authorization URL.
 
 2. **Start ConvertX with OIDC:**
+
    ```bash
    # Create .env file with your credentials
    cp .env.example.oidc .env
@@ -59,36 +62,44 @@ This guide shows you how to test the OIDC integration with your PocketID instanc
 ## Expected Behavior
 
 ### First Login (New User)
+
 - User authenticates with PocketID
 - ConvertX creates new user account with OIDC credentials
 - User is logged in and redirected to home page
 
 ### Subsequent Logins
+
 - User authenticates with PocketID
 - ConvertX finds existing user by `oidc_sub`
 - User is logged in immediately
 
 ### Account Linking
+
 If a user with the same email already exists:
+
 - OIDC identity is linked to existing account
 - User can now login with either email/password OR OIDC
 
 ## Troubleshooting
 
 ### "OIDC is not enabled"
+
 - Make sure `OIDC_ISSUER_URL` is set in your .env file
 
 ### "Failed to generate OIDC authorization URL"
+
 - Check that PocketID instance is accessible
 - Verify client ID is correct
 - Check OIDC discovery endpoint: `https://your-instance/.well-known/openid-configuration`
 
 ### "OIDC authentication failed"
+
 - Check that redirect URI matches what's configured in PocketID
 - Verify PKCE is enabled in PocketID client settings
 - Check browser console for errors
 
 ### "Missing OIDC session data"
+
 - This happens if cookies are blocked
 - Enable cookies in your browser
 - Make sure you're using HTTP (not HTTPS) with `HTTP_ALLOWED=true` in dev
@@ -125,6 +136,7 @@ When deploying to production:
 4. **Configure PocketID** - Add production redirect URI to allowed list
 
 Example production config:
+
 ```yaml
 environment:
   - OIDC_ISSUER_URL=https://your-pocketid.example.com

@@ -468,11 +468,10 @@ export const user = new Elysia()
                     </div>
                     <div class="flex flex-col gap-1">
                       <label class="font-semibold">Email</label>
-                      <p class="rounded-sm bg-neutral-800 p-3 text-neutral-400">
-                        {userData.email}
-                      </p>
+                      <p class="rounded-sm bg-neutral-800 p-3 text-neutral-400">{userData.email}</p>
                       <p class="text-sm text-neutral-500">
-                        Your account is managed by your OIDC provider. You cannot change your email or password here.
+                        Your account is managed by your OIDC provider. You cannot change your email
+                        or password here.
                       </p>
                     </div>
                   </div>

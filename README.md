@@ -135,6 +135,7 @@ services:
 ```
 
 **OIDC Setup Notes:**
+
 - **PKCE is always used** for enhanced security, regardless of client type
 - Users are auto-provisioned on first OIDC login
 - If a user with the same email exists, the OIDC identity is linked to the existing account
