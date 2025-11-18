@@ -29,14 +29,17 @@ CREATE TABLE IF NOT EXISTS jobs (
   num_files INTEGER DEFAULT 0,
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
-PRAGMA user_version = 2;`);
+PRAGMA user_version = 3;`);
 }
 
-const dbVersion = (db.query("PRAGMA user_version").get() as { user_version?: number }).user_version;
+let dbVersion = (db.query("PRAGMA user_version").get() as { user_version?: number }).user_version;
+
+// Run migrations sequentially
 if (dbVersion === 0) {
   db.exec("ALTER TABLE file_names ADD COLUMN status TEXT DEFAULT 'not started';");
   db.exec("PRAGMA user_version = 1;");
   console.log("Updated database to version 1.");
+  dbVersion = 1;
 }
 
 if (dbVersion === 1) {
@@ -44,6 +47,27 @@ if (dbVersion === 1) {
   db.exec("ALTER TABLE users ADD COLUMN oidc_provider TEXT;");
   db.exec("PRAGMA user_version = 2;");
   console.log("Updated database to version 2: Added OIDC support.");
+  dbVersion = 2;
+}
+
+if (dbVersion === 2) {
+  // SQLite doesn't support ALTER COLUMN directly, so we need to recreate the table
+  db.exec(`
+    CREATE TABLE users_new (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT NOT NULL,
+      password TEXT,
+      oidc_sub TEXT,
+      oidc_provider TEXT
+    );
+    INSERT INTO users_new (id, email, password, oidc_sub, oidc_provider)
+    SELECT id, email, password, oidc_sub, oidc_provider FROM users;
+    DROP TABLE users;
+    ALTER TABLE users_new RENAME TO users;
+    PRAGMA user_version = 3;
+  `);
+  console.log("Updated database to version 3: Made password column nullable for OIDC support.");
+  dbVersion = 3;
 }
 
 // enable WAL mode
