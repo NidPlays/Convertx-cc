@@ -32,11 +32,14 @@ CREATE TABLE IF NOT EXISTS jobs (
 PRAGMA user_version = 3;`);
 }
 
-const dbVersion = (db.query("PRAGMA user_version").get() as { user_version?: number }).user_version;
+let dbVersion = (db.query("PRAGMA user_version").get() as { user_version?: number }).user_version;
+
+// Run migrations sequentially
 if (dbVersion === 0) {
   db.exec("ALTER TABLE file_names ADD COLUMN status TEXT DEFAULT 'not started';");
   db.exec("PRAGMA user_version = 1;");
   console.log("Updated database to version 1.");
+  dbVersion = 1;
 }
 
 if (dbVersion === 1) {
@@ -44,6 +47,7 @@ if (dbVersion === 1) {
   db.exec("ALTER TABLE users ADD COLUMN oidc_provider TEXT;");
   db.exec("PRAGMA user_version = 2;");
   console.log("Updated database to version 2: Added OIDC support.");
+  dbVersion = 2;
 }
 
 if (dbVersion === 2) {
@@ -63,6 +67,7 @@ if (dbVersion === 2) {
     PRAGMA user_version = 3;
   `);
   console.log("Updated database to version 3: Made password column nullable for OIDC support.");
+  dbVersion = 3;
 }
 
 // enable WAL mode
