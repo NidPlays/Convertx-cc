@@ -1,2 +1,6 @@
 [tools]
-bun = "1.2.2"
+bun = "1.4.2"
+
+[env]
+JWT_SECRET = "aLongAndSecretStringUsedToSignTheJSONWebToken1234"
+FFMPEG_OUTPUT_ARGS = "-preset veryfast -threads 2"

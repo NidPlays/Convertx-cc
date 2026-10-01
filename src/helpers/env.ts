@@ -12,6 +12,8 @@ export const AUTO_DELETE_EVERY_N_HOURS = process.env.AUTO_DELETE_EVERY_N_HOURS
 
 export const HIDE_HISTORY = process.env.HIDE_HISTORY?.toLowerCase() === "true" || false;
 
+export const BRANDING = process.env.BRANDING ?? "ConvertX";
+
 export const WEBROOT = process.env.WEBROOT ?? "";
 
 export const LANGUAGE = process.env.LANGUAGE?.toLowerCase() || "en";
@@ -23,6 +25,8 @@ export const MAX_CONVERT_PROCESS =
 
 export const UNAUTHENTICATED_USER_SHARING =
   process.env.UNAUTHENTICATED_USER_SHARING?.toLowerCase() === "true" || false;
+
+export const TIMEZONE = process.env.TZ || undefined;
 
 // OIDC Configuration
 export const OIDC_ENABLED = process.env.OIDC_ISSUER_URL ? true : false;

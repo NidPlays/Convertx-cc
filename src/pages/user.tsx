@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-import { jwt } from "@elysiajs/jwt";
 import { Elysia, t } from "elysia";
 import { BaseHtml } from "../components/base";
 import { Header } from "../components/header";
@@ -14,61 +12,17 @@ import {
   OIDC_ENABLED,
   OIDC_ONLY,
   WEBROOT,
+  BRANDING,
 } from "../helpers/env";
+import { userService } from "../services/user";
+
+export { userService } from "../services/user";
 
 export let FIRST_RUN = db.query("SELECT * FROM users").get() === null || false;
 
 export function setFirstRunComplete() {
   FIRST_RUN = false;
 }
-
-export const userService = new Elysia({ name: "user/service" })
-  .use(
-    jwt({
-      name: "jwt",
-      schema: t.Object({
-        id: t.String(),
-      }),
-      secret: process.env.JWT_SECRET ?? randomUUID(),
-      exp: "7d",
-    }),
-  )
-  .model({
-    signIn: t.Object({
-      email: t.String(),
-      password: t.String(),
-    }),
-    session: t.Cookie({
-      auth: t.String(),
-      jobId: t.Optional(t.String()),
-    }),
-    optionalSession: t.Cookie({
-      auth: t.Optional(t.String()),
-      jobId: t.Optional(t.String()),
-    }),
-  })
-  .macro("auth", {
-    cookie: "session",
-    async resolve({ status, jwt, cookie: { auth } }) {
-      if (!auth.value) {
-        return status(401, {
-          success: false,
-          message: "Unauthorized",
-        });
-      }
-      const user = await jwt.verify(auth.value);
-      if (!user) {
-        return status(401, {
-          success: false,
-          message: "Unauthorized",
-        });
-      }
-      return {
-        success: true,
-        user,
-      };
-    },
-  });
 
 export const user = new Elysia()
   .use(userService)
@@ -133,6 +87,7 @@ export const user = new Elysia()
                     href={`${WEBROOT}/login/oidc`}
                     role="button"
                     class="block w-full btn-primary text-center"
+                    safe
                   >
                     {OIDC_BUTTON_TEXT}
                   </a>
@@ -167,6 +122,7 @@ export const user = new Elysia()
         <>
           <Header
             webroot={WEBROOT}
+            branding={BRANDING}
             accountRegistration={ACCOUNT_REGISTRATION}
             allowUnauthenticated={ALLOW_UNAUTHENTICATED}
             hideHistory={HIDE_HISTORY}
@@ -289,6 +245,7 @@ export const user = new Elysia()
           <>
             <Header
               webroot={WEBROOT}
+              branding={BRANDING}
               accountRegistration={ACCOUNT_REGISTRATION}
               allowUnauthenticated={ALLOW_UNAUTHENTICATED}
               hideHistory={HIDE_HISTORY}
@@ -311,6 +268,7 @@ export const user = new Elysia()
                           class="rounded-sm bg-neutral-800 p-3"
                           placeholder="Email"
                           autocomplete="email"
+                          autofocus
                           required
                         />
                       </label>
@@ -353,6 +311,7 @@ export const user = new Elysia()
                       href={`${WEBROOT}/login/oidc`}
                       role="button"
                       class="block w-full btn-primary text-center"
+                      safe
                     >
                       {OIDC_BUTTON_TEXT}
                     </a>
@@ -450,6 +409,7 @@ export const user = new Elysia()
           <>
             <Header
               webroot={WEBROOT}
+              branding={BRANDING}
               accountRegistration={ACCOUNT_REGISTRATION}
               allowUnauthenticated={ALLOW_UNAUTHENTICATED}
               hideHistory={HIDE_HISTORY}
@@ -467,12 +427,14 @@ export const user = new Elysia()
                     <div class="rounded-sm bg-neutral-800 p-4">
                       <p class="mb-2 font-semibold">Authentication Method</p>
                       <p class="text-neutral-400">
-                        You are logged in via OIDC ({userData.oidc_provider}).
+                        You are logged in via OIDC (<span safe>{userData.oidc_provider}</span>).
                       </p>
                     </div>
                     <div class="flex flex-col gap-1">
                       <label class="font-semibold">Email</label>
-                      <p class="rounded-sm bg-neutral-800 p-3 text-neutral-400">{userData.email}</p>
+                      <p class="rounded-sm bg-neutral-800 p-3 text-neutral-400" safe>
+                        {userData.email}
+                      </p>
                       <p class="text-sm text-neutral-500">
                         Your account is managed by your OIDC provider. You cannot change your email
                         or password here.

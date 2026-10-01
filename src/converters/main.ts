@@ -1,5 +1,7 @@
 import { Cookie } from "elysia";
 import db from "../db/db";
+import fs from "node:fs";
+import path from "node:path";
 import { MAX_CONVERT_PROCESS } from "../helpers/env";
 import { normalizeFiletype, normalizeOutputFiletype } from "../helpers/normalizeFiletype";
 import { convert as convertassimp, properties as propertiesassimp } from "./assimp";
@@ -18,11 +20,14 @@ import { convert as convertLibjxl, properties as propertiesLibjxl } from "./libj
 import { convert as convertLibreOffice, properties as propertiesLibreOffice } from "./libreoffice";
 import { convert as convertMsgconvert, properties as propertiesMsgconvert } from "./msgconvert";
 import { convert as convertPandoc, properties as propertiesPandoc } from "./pandoc";
+import { convert as convertPdftops, properties as propertiesPdftops } from "./pdftops";
 import { convert as convertPotrace, properties as propertiesPotrace } from "./potrace";
 import { convert as convertresvg, properties as propertiesresvg } from "./resvg";
 import { convert as convertImage, properties as propertiesImage } from "./vips";
 import { convert as convertVtracer, properties as propertiesVtracer } from "./vtracer";
+import { convert as convertVcf, properties as propertiesVcf } from "./vcf";
 import { convert as convertxelatex, properties as propertiesxelatex } from "./xelatex";
+import { convert as convertMarkitdown, properties as propertiesMarkitdown } from "./markitdown";
 
 // This should probably be reconstructed so that the functions are not imported instead the functions hook into this to make the converters more modular
 
@@ -127,6 +132,18 @@ const properties: Record<
     properties: propertiesVtracer,
     converter: convertVtracer,
   },
+  vcf: {
+    properties: propertiesVcf,
+    converter: convertVcf,
+  },
+  markitDown: {
+    properties: propertiesMarkitdown,
+    converter: convertMarkitdown,
+  },
+  pdftops: {
+    properties: propertiesPdftops,
+    converter: convertPdftops,
+  },
 };
 
 function chunks<T>(arr: T[], size: number): T[][] {
@@ -154,20 +171,49 @@ export async function handleConvert(
     const toProcess: Promise<string>[] = [];
     for (const fileName of chunk) {
       const filePath = `${userUploadsDir}${fileName}`;
-      const fileTypeOrig = fileName.split(".").pop() ?? "";
+      const fileTypeOrig = fileName.includes(".") ? (fileName.split(".").pop() ?? "") : "";
       const fileType = normalizeFiletype(fileTypeOrig);
       const newFileExt = normalizeOutputFiletype(convertTo);
-      const newFileName = fileName.replace(
-        new RegExp(`${fileTypeOrig}(?!.*${fileTypeOrig})`),
-        newFileExt,
-      );
+      let newFileName: string;
+      if (fileTypeOrig === "") {
+        newFileName = `${fileName}.${newFileExt}`;
+      } else {
+        newFileName = fileName.replace(
+          new RegExp(`${fileTypeOrig}(?!.*${fileTypeOrig})`),
+          newFileExt,
+        );
+      }
       const targetPath = `${userOutputDir}${newFileName}`;
       toProcess.push(
         new Promise((resolve, reject) => {
           mainConverter(filePath, fileType, convertTo, targetPath, {}, converterName)
             .then((r) => {
               if (jobId.value) {
-                query.run(jobId.value, fileName, newFileName, r);
+                const dir = path.dirname(targetPath);
+                const parsed = path.parse(targetPath);
+
+                const outputFiles = fs
+                  .readdirSync(dir)
+                  .filter((f) => {
+                    if (f === parsed.base) {
+                      return true;
+                    }
+
+                    return (
+                      f.startsWith(`${parsed.name}-`) &&
+                      f.endsWith(parsed.ext) &&
+                      /^\d+$/.test(f.slice(parsed.name.length + 1, -parsed.ext.length))
+                    );
+                  })
+                  .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+                if (outputFiles.length > 0) {
+                  for (const outputFile of outputFiles) {
+                    query.run(jobId.value, fileName, outputFile, r);
+                  }
+                } else {
+                  query.run(jobId.value, fileName, newFileName, r);
+                }
               }
               resolve(r);
             })
@@ -245,22 +291,18 @@ const possibleTargets: Record<string, Record<string, string[]>> = {};
 
 for (const converterName in properties) {
   const converterProperties = properties[converterName]?.properties;
-
-  if (!converterProperties) {
-    continue;
-  }
+  if (!converterProperties) continue;
 
   for (const key in converterProperties.from) {
-    if (converterProperties.from[key] === undefined) {
-      continue;
-    }
+    const fromList = converterProperties.from[key];
+    const toList = converterProperties.to[key];
 
-    for (const extension of converterProperties.from[key] ?? []) {
-      if (!possibleTargets[extension]) {
-        possibleTargets[extension] = {};
-      }
+    if (!fromList || !toList) continue;
 
-      possibleTargets[extension][converterName] = converterProperties.to[key] || [];
+    for (const ext of fromList) {
+      if (!possibleTargets[ext]) possibleTargets[ext] = {};
+
+      possibleTargets[ext][converterName] = toList;
     }
   }
 }
@@ -288,11 +330,6 @@ for (const converterName in properties) {
   }
 }
 possibleInputs.sort();
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const getPossibleInputs = () => {
-  return possibleInputs;
-};
 
 const allTargets: Record<string, string[]> = {};
 
@@ -337,28 +374,8 @@ export const getAllInputs = (converter: string) => {
   return allInputs[converter] || [];
 };
 
-// // count the number of unique formats
-// const uniqueFormats = new Set();
-
-// for (const converterName in properties) {
-//   const converterProperties = properties[converterName]?.properties;
-
-//   if (!converterProperties) {
-//     continue;
-//   }
-
-//   for (const key in converterProperties.from) {
-//     for (const extension of converterProperties.from[key] ?? []) {
-//       uniqueFormats.add(extension);
-//     }
-//   }
-
-//   for (const key in converterProperties.to) {
-//     for (const extension of converterProperties.to[key] ?? []) {
-//       uniqueFormats.add(extension);
-//     }
-//   }
-// }
-
-// // print the number of unique Inputs and Outputs
-// console.log(`Unique Formats: ${uniqueFormats.size}`);
+/**
+ * @internal For testing only. Do not use in production.
+ * Tests need direct access to cover all branches of converter discovery and chunking logic.
+ */
+export { chunks, mainConverter };

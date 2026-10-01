@@ -38,6 +38,7 @@ A self-hosted online file converter. Supports over a thousand different formats.
 | [Dasel](https://github.com/TomWright/dasel)                     | Data Files       | 5             | 4           |
 | [Pandoc](https://pandoc.org/)                                   | Documents        | 43            | 65          |
 | [msgconvert](https://github.com/mvz/email-outlook-message-perl) | Outlook          | 1             | 1           |
+| VCF to CSV                                                      | Contacts         | 1             | 1           |
 | [dvisvgm](https://dvisvgm.de/)                                  | Vector images    | 4             | 2           |
 | [ImageMagick](https://imagemagick.org/)                         | Images           | 245           | 183         |
 | [GraphicsMagick](http://www.graphicsmagick.org/)                | Images           | 167           | 130         |
@@ -45,6 +46,8 @@ A self-hosted online file converter. Supports over a thousand different formats.
 | [FFmpeg](https://ffmpeg.org/)                                   | Video            | ~472          | ~199        |
 | [Potrace](https://potrace.sourceforge.net/)                     | Raster to vector | 4             | 11          |
 | [VTracer](https://github.com/visioncortex/vtracer)              | Raster to vector | 8             | 1           |
+| [Markitdown](https://github.com/microsoft/markitdown)           | Documents        | 6             | 1           |
+| [pdftops](https://poppler.freedesktop.org/)                     | Documents        | 1             | 2           |
 
 <!-- many ffmpeg fileformats are duplicates -->
 
@@ -65,6 +68,7 @@ services:
     ports:
       - "3000:3000"
     environment:
+      - PUID=1000 # user id for file permissions (should match your host user id)
       - JWT_SECRET=aLongAndSecretStringUsedToSignTheJSONWebToken1234 # will use randomUUID() if unset
       # - HTTP_ALLOWED=true # uncomment this if accessing it over a non-https connection
     volumes:
@@ -74,12 +78,12 @@ services:
 or
 
 ```bash
-docker run -p 3000:3000 -v ./data:/app/data ghcr.io/c4illin/convertx
+docker run -p 3000:3000 -e PUID=1000 -e PGID=1000 -v ./data:/app/data ghcr.io/c4illin/convertx
 ```
 
-Then visit `http://localhost:3000` in your browser and create your account. Don't leave it unconfigured and open, as anyone can register the first account.
+Ensure `PUID` and `PGID` match your host user (`id -u` and `id -g`) to avoid permission issues on the mapped `./data` volume. If you get unable to open database file, verify the directory permissions or run `chown -R $USER:$USER path` on the path you choose.
 
-If you get unable to open database file run `chown -R $USER:$USER path` on the path you choose.
+Then visit `http://localhost:3000` in your browser and create your account. Don't leave it unconfigured and open, as anyone can register the first account.
 
 ### OIDC Authentication (Optional)
 
@@ -147,25 +151,34 @@ services:
 
 All are optional, JWT_SECRET is recommended to be set.
 
-| Name                         | Default                                            | Description                                                                                                               |
-| ---------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| JWT_SECRET                   | when unset it will use the value from randomUUID() | A long and secret string used to sign the JSON Web Token                                                                  |
-| ACCOUNT_REGISTRATION         | false                                              | Allow users to register accounts                                                                                          |
-| HTTP_ALLOWED                 | false                                              | Allow HTTP connections, only set this to true locally                                                                     |
-| ALLOW_UNAUTHENTICATED        | false                                              | Allow unauthenticated users to use the service, only set this to true locally                                             |
-| AUTO_DELETE_EVERY_N_HOURS    | 24                                                 | Checks every n hours for files older then n hours and deletes them, set to 0 to disable                                   |
-| WEBROOT                      |                                                    | The address to the root path setting this to "/convert" will serve the website on "example.com/convert/"                  |
-| FFMPEG_ARGS                  |                                                    | Arguments to pass to ffmpeg, e.g. `-preset veryfast`                                                                      |
-| HIDE_HISTORY                 | false                                              | Hide the history page                                                                                                     |
-| LANGUAGE                     | en                                                 | Language to format date strings in, specified as a [BCP 47 language tag](https://en.wikipedia.org/wiki/IETF_language_tag) |
-| UNAUTHENTICATED_USER_SHARING | false                                              | Shares conversion history between all unauthenticated users                                                               |
-| MAX_CONVERT_PROCESS          | 0                                                  | Maximum number of concurrent conversion processes allowed. Set to 0 for unlimited.                                        |
-| OIDC_ISSUER_URL              |                                                    | OIDC provider issuer URL (e.g., https://your-pocketid.example.com). Setting this enables OIDC authentication              |
-| OIDC_CLIENT_ID               |                                                    | OAuth2/OIDC client ID from your OIDC provider                                                                             |
-| OIDC_CLIENT_SECRET           |                                                    | OAuth2/OIDC client secret (optional for public clients, PKCE is used automatically)                                       |
-| OIDC_REDIRECT_URI            |                                                    | OIDC callback URL (e.g., https://convertx.example.com/callback/oidc)                                                      |
-| OIDC_ONLY                    | false                                              | When true, disable traditional email/password login and only allow OIDC authentication                                    |
-| OIDC_BUTTON_TEXT             | Sign in with OIDC                                  | Customize the text shown on the OIDC login button                                                                         |
+> [!WARNING]
+> Never expose the service to the internet with ALLOW_UNAUTHENTICATED or ACCOUNT_REGISTRATION true. Only allow users you trust to access the service.
+
+| Name                         | Default                                            | Description                                                                                                                                                   |
+| ---------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| JWT_SECRET                   | when unset it will use the value from randomUUID() | A long and secret string used to sign the JSON Web Token                                                                                                      |
+| PUID                         | 0 (root)                                           | User ID to run the application process as (it first uses root to chown the files)                                                                             |
+| PGID                         | PUID if unset, root if both unset                  | Group ID to run the application process as                                                                                                                    |
+| UMASK                        | 002 (when PUID is set)                             | File creation mask for processes and created files                                                                                                            |
+| ACCOUNT_REGISTRATION         | false                                              | Allow users to register accounts                                                                                                                              |
+| HTTP_ALLOWED                 | false                                              | Allow HTTP connections, only set this to true locally                                                                                                         |
+| ALLOW_UNAUTHENTICATED        | false                                              | Allow unauthenticated users to use the service, only set this to true locally                                                                                 |
+| AUTO_DELETE_EVERY_N_HOURS    | 24                                                 | Checks every n hours for files older then n hours and deletes them, set to 0 to disable                                                                       |
+| WEBROOT                      |                                                    | The address to the root path setting this to "/convert" will serve the website on "example.com/convert/"                                                      |
+| BRANDING                     | ConvertX                                           | Custom string that allows you to change the display name of the website in the header (max 26 characters)                                                     |
+| FFMPEG_ARGS                  |                                                    | Arguments to pass to the input file of ffmpeg, e.g. `-hwaccel vaapi`. See https://github.com/C4illin/ConvertX/issues/190 for more info about hw-acceleration. |
+| FFMPEG_OUTPUT_ARGS           |                                                    | Arguments to pass to the output of ffmpeg, e.g. `-preset veryfast`                                                                                            |
+| HIDE_HISTORY                 | false                                              | Hide the history page                                                                                                                                         |
+| LANGUAGE                     | en                                                 | Language to format date strings in, specified as a [BCP 47 language tag](https://en.wikipedia.org/wiki/IETF_language_tag)                                     |
+| UNAUTHENTICATED_USER_SHARING | false                                              | Shares conversion history between all unauthenticated users                                                                                                   |
+| MAX_CONVERT_PROCESS          | 0                                                  | Maximum number of concurrent conversion processes allowed. Set to 0 for unlimited.                                                                            |
+| PORT                         | 3000                                               | Application listen port                                                                                                                                       |
+| OIDC_ISSUER_URL              |                                                    | OIDC provider issuer URL (e.g., https://your-pocketid.example.com). Setting this enables OIDC authentication                                                  |
+| OIDC_CLIENT_ID               |                                                    | OAuth2/OIDC client ID from your OIDC provider                                                                                                                 |
+| OIDC_CLIENT_SECRET           |                                                    | OAuth2/OIDC client secret (optional for public clients, PKCE is used automatically)                                                                           |
+| OIDC_REDIRECT_URI            |                                                    | OIDC callback URL (e.g., https://convertx.example.com/callback/oidc)                                                                                          |
+| OIDC_ONLY                    | false                                              | When true, disable traditional email/password login and only allow OIDC authentication                                                                        |
+| OIDC_BUTTON_TEXT             | Sign in with OIDC                                  | Customize the text shown on the OIDC login button                                                                                                             |
 
 ### Docker images
 
@@ -193,6 +206,8 @@ The image is available on [GitHub Container Registry](https://github.com/C4illin
 Tutorial in french: <https://belginux.com/installer-convertx-avec-docker/>
 
 Tutorial in chinese: <https://xzllll.com/24092901/>
+
+Tutorial in polish: <https://www.kreatywnyprogramista.pl/convertx-lokalny-konwerter-plikow>
 
 ## Screenshots
 
