@@ -1,5 +1,22 @@
-import { execFile as execFileOriginal } from "node:child_process";
-import { ExecFileFn } from "./types";
+import {
+  execFile as execFileOriginal,
+  type ChildProcess,
+  type ExecFileOptions,
+} from "node:child_process";
+
+// ffmpeg streams continuous progress to stderr, so a long conversion overflows
+// execFile's 1 MB default maxBuffer and fails with "stderr maxBuffer length
+// exceeded" (issue #565). Raise it well above that. The options object must be
+// passed before the callback: execFile ignores an options argument placed after
+// the callback, which is why the shared ExecFileFn type cannot carry it.
+const FFMPEG_MAX_BUFFER = 1024 * 1024 * 64; // 64 MB
+
+type FfmpegExecFile = (
+  cmd: string,
+  args: string[],
+  options: ExecFileOptions,
+  callback: (err: Error | null, stdout: string, stderr: string) => void,
+) => ChildProcess | void;
 
 // This could be done dynamically by running `ffmpeg -formats` and parsing the output
 export const properties = {
@@ -224,6 +241,7 @@ export const properties = {
       "lxf",
       "m15",
       "m2a",
+      "m2ts",
       "m4a",
       "m4b",
       "m4v",
@@ -406,6 +424,7 @@ export const properties = {
       "tiff",
       "tmv",
       "truehd",
+      "ts",
       "tta",
       "tty",
       "txd",
@@ -439,6 +458,7 @@ export const properties = {
       "vivo",
       "vmd",
       "vobsub",
+      "vob",
       "voc",
       "vpk",
       "vplayer",
@@ -456,6 +476,8 @@ export const properties = {
       "webm",
       "webp",
       "webvtt",
+      "wma",
+      "wmv",
       "wow",
       "wsaud",
       "wsd",
@@ -588,6 +610,7 @@ export const properties = {
       "m4v",
       "mjpeg",
       "mjpg",
+      "mka",
       "mkv",
       "mlp",
       "mmf",
@@ -693,13 +716,13 @@ export async function convert(
   convertTo: string,
   targetPath: string,
   options?: unknown,
-  execFile: ExecFileFn = execFileOriginal, // to make it mockable
+  execFile: FfmpegExecFile = execFileOriginal as FfmpegExecFile, // to make it mockable
 ): Promise<string> {
   let extraArgs: string[] = [];
   let message = "Done";
 
   if (convertTo === "ico") {
-    // make sure image is 256x256 or smaller
+    // Make sure image is 256x256 or smaller
     extraArgs = [
       "-filter:v",
       "scale='min(256,iw)':min'(256,ih)':force_original_aspect_ratio=decrease",
@@ -708,7 +731,7 @@ export async function convert(
   }
 
   if (convertTo.split(".").length > 1) {
-    // support av1.mkv and av1.mp4 and h265.mp4 etc.
+    // Support av1.mkv and av1.mp4 and h265.mp4 etc.
     const split = convertTo.split(".");
     const codec_short = split[0];
 
@@ -730,11 +753,15 @@ export async function convert(
 
   // Parse FFMPEG_ARGS environment variable into array
   const ffmpegArgs = process.env.FFMPEG_ARGS ? process.env.FFMPEG_ARGS.split(/\s+/) : [];
+  const ffmpegOutputArgs = process.env.FFMPEG_OUTPUT_ARGS
+    ? process.env.FFMPEG_OUTPUT_ARGS.split(/\s+/)
+    : [];
 
   return new Promise((resolve, reject) => {
     execFile(
       "ffmpeg",
-      [...ffmpegArgs, "-i", filePath, ...extraArgs, targetPath],
+      [...ffmpegArgs, "-i", filePath, ...ffmpegOutputArgs, ...extraArgs, targetPath],
+      { maxBuffer: FFMPEG_MAX_BUFFER },
       (error, stdout, stderr) => {
         if (error) {
           reject(`error: ${error}`);

@@ -1,39 +1,37 @@
 import js from "@eslint/js";
-import eslintParserTypeScript from "@typescript-eslint/parser";
 import eslintPluginBetterTailwindcss from "eslint-plugin-better-tailwindcss";
+import { defineConfig } from "eslint/config";
 import globals from "globals";
-import tseslint from "typescript-eslint";
+import tseslint, { parser as eslintParserTypeScript } from "typescript-eslint";
 
-export default tseslint.config(
+export default defineConfig(
+  {
+    ignores: ["**/node_modules/**", "dist/**", "test-oidc-local.ts"],
+  },
   js.configs.recommended,
   tseslint.configs.recommended,
   {
-    plugins: {
-      "better-tailwindcss": eslintPluginBetterTailwindcss,
-    },
-    ignores: ["**/node_modules/**", "**/dist/**", "eslint.config.ts", "test-oidc-local.ts"],
+    files: ["**/*.{ts,tsx,cts,mts}"],
+    extends: [
+      eslintPluginBetterTailwindcss.configs.recommended,
+      eslintPluginBetterTailwindcss.configs.stylistic,
+    ],
     languageOptions: {
       parser: eslintParserTypeScript,
       parserOptions: {
-        project: true,
-        ecmaFeatures: {
-          jsx: true,
-        },
+        project: "./tsconfig.eslint.json",
+        tsconfigRootDir: import.meta.dirname,
       },
       globals: {
         ...globals.node,
       },
     },
-    files: ["**/*.{tsx,ts}"],
     settings: {
       "better-tailwindcss": {
         entryPoint: "src/main.css",
       },
     },
     rules: {
-      ...(eslintPluginBetterTailwindcss.configs["recommended-warn"] ?? {}).rules,
-      ...(eslintPluginBetterTailwindcss.configs["stylistic-warn"] ?? {}).rules,
-      // "tailwindcss/classnames-order": "off",
       "better-tailwindcss/enforce-consistent-line-wrapping": [
         "warn",
         {
@@ -41,7 +39,7 @@ export default tseslint.config(
           printWidth: 100,
         },
       ],
-      "better-tailwindcss/no-unregistered-classes": [
+      "better-tailwindcss/no-unknown-classes": [
         "warn",
         {
           ignore: [
@@ -56,6 +54,16 @@ export default tseslint.config(
           ],
         },
       ],
+    },
+  },
+  {
+    files: ["**/*.{jsx,tsx}"],
+    languageOptions: {
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
     },
   },
   {

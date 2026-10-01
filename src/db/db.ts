@@ -1,76 +1,101 @@
-import { mkdirSync } from "node:fs";
 import { Database } from "bun:sqlite";
+import { mkdirSync } from "node:fs";
+import { dirname } from "node:path";
 
-mkdirSync("./data", { recursive: true });
-const db = new Database("./data/mydb.sqlite", { create: true });
+export function initializeDatabase(db: Database): void {
+  const hasTables = db.query("SELECT * FROM sqlite_master WHERE type='table'").get();
 
-if (!db.query("SELECT * FROM sqlite_master WHERE type='table'").get()) {
-  db.exec(`
-CREATE TABLE IF NOT EXISTS users (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	email TEXT NOT NULL,
-	password TEXT,
-	oidc_sub TEXT,
-	oidc_provider TEXT
-);
-CREATE TABLE IF NOT EXISTS file_names (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  job_id INTEGER NOT NULL,
-  file_name TEXT NOT NULL,
-  output_file_name TEXT NOT NULL,
-  status TEXT DEFAULT 'not started',
-  FOREIGN KEY (job_id) REFERENCES jobs(id)
-);
-CREATE TABLE IF NOT EXISTS jobs (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	user_id INTEGER NOT NULL,
-	date_created TEXT NOT NULL,
-  status TEXT DEFAULT 'not started',
-  num_files INTEGER DEFAULT 0,
-  FOREIGN KEY (user_id) REFERENCES users(id)
-);
-PRAGMA user_version = 3;`);
+  if (!hasTables) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT NOT NULL,
+        password TEXT,
+        oidc_sub TEXT,
+        oidc_provider TEXT
+      );
+      CREATE TABLE IF NOT EXISTS file_names (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        job_id INTEGER NOT NULL,
+        file_name TEXT NOT NULL,
+        output_file_name TEXT NOT NULL,
+        status TEXT DEFAULT 'not started',
+        FOREIGN KEY (job_id) REFERENCES jobs(id)
+      );
+      CREATE TABLE IF NOT EXISTS jobs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        date_created TEXT NOT NULL,
+        status TEXT DEFAULT 'not started',
+        num_files INTEGER DEFAULT 0,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      );
+    `);
+    db.exec("PRAGMA user_version = 3;");
+  }
+
+  let dbVersion =
+    (db.query("PRAGMA user_version").get() as { user_version?: number }).user_version ?? 0;
+
+  // Run migrations sequentially
+  if (dbVersion < 1) {
+    // Don't trust user_version alone — verify the column is actually
+    // missing before altering. This makes the migration safe to re-run
+    // even against a file left in an inconsistent state.
+    const columns = db.query("PRAGMA table_info(file_names)").all() as { name: string }[];
+    const hasStatusColumn = columns.some((c) => c.name.toLowerCase() === "status");
+
+    if (!hasStatusColumn) {
+      db.exec("ALTER TABLE file_names ADD COLUMN status TEXT DEFAULT 'not started';");
+    }
+
+    db.exec("PRAGMA user_version = 1;");
+    console.log("Updated database to version 1.");
+    dbVersion = 1;
+  }
+
+  if (dbVersion === 1) {
+    const columns = db.query("PRAGMA table_info(users)").all() as { name: string }[];
+    const columnNames = columns.map((c) => c.name.toLowerCase());
+
+    if (!columnNames.includes("oidc_sub")) {
+      db.exec("ALTER TABLE users ADD COLUMN oidc_sub TEXT;");
+    }
+    if (!columnNames.includes("oidc_provider")) {
+      db.exec("ALTER TABLE users ADD COLUMN oidc_provider TEXT;");
+    }
+
+    db.exec("PRAGMA user_version = 2;");
+    console.log("Updated database to version 2: Added OIDC support.");
+    dbVersion = 2;
+  }
+
+  if (dbVersion === 2) {
+    // SQLite doesn't support ALTER COLUMN directly, so we need to recreate the table
+    db.exec(`
+      CREATE TABLE users_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT NOT NULL,
+        password TEXT,
+        oidc_sub TEXT,
+        oidc_provider TEXT
+      );
+      INSERT INTO users_new (id, email, password, oidc_sub, oidc_provider)
+      SELECT id, email, password, oidc_sub, oidc_provider FROM users;
+      DROP TABLE users;
+      ALTER TABLE users_new RENAME TO users;
+      PRAGMA user_version = 3;
+    `);
+    console.log("Updated database to version 3: Made password column nullable for OIDC support.");
+  }
+
+  // enable WAL mode
+  db.exec("PRAGMA journal_mode = WAL;");
 }
 
-let dbVersion = (db.query("PRAGMA user_version").get() as { user_version?: number }).user_version;
-
-// Run migrations sequentially
-if (dbVersion === 0) {
-  db.exec("ALTER TABLE file_names ADD COLUMN status TEXT DEFAULT 'not started';");
-  db.exec("PRAGMA user_version = 1;");
-  console.log("Updated database to version 1.");
-  dbVersion = 1;
-}
-
-if (dbVersion === 1) {
-  db.exec("ALTER TABLE users ADD COLUMN oidc_sub TEXT;");
-  db.exec("ALTER TABLE users ADD COLUMN oidc_provider TEXT;");
-  db.exec("PRAGMA user_version = 2;");
-  console.log("Updated database to version 2: Added OIDC support.");
-  dbVersion = 2;
-}
-
-if (dbVersion === 2) {
-  // SQLite doesn't support ALTER COLUMN directly, so we need to recreate the table
-  db.exec(`
-    CREATE TABLE users_new (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT NOT NULL,
-      password TEXT,
-      oidc_sub TEXT,
-      oidc_provider TEXT
-    );
-    INSERT INTO users_new (id, email, password, oidc_sub, oidc_provider)
-    SELECT id, email, password, oidc_sub, oidc_provider FROM users;
-    DROP TABLE users;
-    ALTER TABLE users_new RENAME TO users;
-    PRAGMA user_version = 3;
-  `);
-  console.log("Updated database to version 3: Made password column nullable for OIDC support.");
-  dbVersion = 3;
-}
-
-// enable WAL mode
-db.exec("PRAGMA journal_mode = WAL;");
+const dbPath = process.env.DB_PATH ?? "./data/mydb.sqlite";
+mkdirSync(dirname(dbPath), { recursive: true });
+const db = new Database(dbPath, { create: true });
+initializeDatabase(db);
 
 export default db;

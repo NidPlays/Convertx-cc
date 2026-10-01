@@ -23,6 +23,9 @@ import { oidc } from "./pages/oidc";
 export const uploadsDir = "./data/uploads/";
 export const outputDir = "./data/output/";
 
+// Fix for Elysia issue with Bun, (see https://github.com/oven-sh/bun/issues/12161)
+process.getBuiltinModule = require;
+
 const app = new Elysia({
   serve: {
     maxRequestBodySize: Number.MAX_SAFE_INTEGER,
@@ -49,7 +52,11 @@ const app = new Elysia({
   .use(listConverters)
   .use(chooseConverter)
   .use(healthcheck)
-  .onError(({ error }) => {
+  .onError(({ error, code, request }) => {
+    if (code === "NOT_FOUND") {
+      console.warn(`404: ${request.method} ${new URL(request.url).pathname}`);
+      return;
+    }
     console.error(error);
   });
 
@@ -64,7 +71,7 @@ if (process.env.NODE_ENV !== "production") {
   });
 }
 
-app.listen(3000);
+app.listen(process.env.PORT || 3000);
 
 console.log(`🦊 Elysia is running at http://${app.server?.hostname}:${app.server?.port}${WEBROOT}`);
 

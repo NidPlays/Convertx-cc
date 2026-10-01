@@ -6,7 +6,6 @@ export const properties = {
     text: [
       "602",
       "abw",
-      "csv",
       "cwk",
       "doc",
       "docm",
@@ -35,7 +34,6 @@ export const properties = {
       "stw",
       "sxw",
       "tab",
-      "tsv",
       "txt",
       "wn",
       "wpd",
@@ -46,10 +44,10 @@ export const properties = {
       "xml",
       "zabw",
     ],
+    calc: ["csv", "ods", "tsv", "xls", "xlsx"],
   },
   to: {
     text: [
-      "csv",
       "doc",
       "docm",
       "docx",
@@ -65,19 +63,19 @@ export const properties = {
       "pdf",
       "rtf",
       "tab",
-      "tsv",
       "txt",
       "wps",
       "wpt",
       "xhtml",
       "xml",
     ],
+    calc: ["csv", "ods", "pdf", "tsv", "xls", "xlsx", "ots", "xlsm", "xlt", "xltm"],
   },
 };
 
 type FileCategories = "text" | "calc";
 
-const filters: Record<FileCategories, Record<string, string>> = {
+const filters: Record<FileCategories, Record<string, string | null>> = {
   text: {
     "602": "T602Document",
     abw: "AbiWord",
@@ -102,7 +100,7 @@ const filters: Record<FileCategories, Record<string, string>> = {
     odt: "writer8",
     ott: "writer8_template",
     pages: "Apple Pages",
-    // pdf: "writer_pdf_import",
+    pdf: "writer_pdf_import",
     psw: "PocketWord File",
     rtf: "Rich Text Format",
     sdw: "StarOffice_Writer",
@@ -113,18 +111,44 @@ const filters: Record<FileCategories, Record<string, string>> = {
     txt: "Text",
     wn: "WriteNow",
     wpd: "WordPerfect",
-    wps: "MS Word 97",
+    // .wps is Microsoft Works, not MS Word 97/.doc - forcing the "MS Word 97"
+    // filter makes soffice reject a genuine Works document with "source file
+    // could not be loaded", even though it converts the same file fine with
+    // no --infilter at all (LibreOffice auto-detects it correctly).
+
+    // null is deliberate for BOTH directions here, not just the import side:
+    // this map feeds both --infilter (import) and the --convert-to suffix
+    // (export). On import, null lets LibreOffice auto-detect - its Works
+    // import filter (MS_Works, libwps-backed) is import-only, so it can only
+    // be reached via auto-detection anyway. On export, LibreOffice has no
+    // Works export filter at all; bare `--convert-to wps` falls back to its
+    // default export filter for the extension, which is "MS Word 97" - the
+    // exact filter this map pinned before, so export output is unchanged.
+    wps: null,
     wpt: "MS Word 97 Vorlage",
     wri: "MS_Write",
     xhtml: "HTML (StarWriter)",
     xml: "OpenDocument Text Flat XML",
     zabw: "AbiWord",
   },
-  calc: {},
+  calc: {
+    csv: "Text - txt - csv (StarCalc)",
+    ods: "calc8",
+    ots: "calc8_template",
+    pdf: "calc_pdf_Export",
+    tsv: "Text - txt - csv (StarCalc)",
+    xls: "MS Excel 97",
+    xlsx: "Calc MS Excel 2007 XML",
+    xlsm: "Calc MS Excel 2007 XML VBA",
+    xlt: "MS Excel 97 Vorlage",
+    xltm: "Calc MS Excel 2007 XML Template",
+  },
 };
 
 const getFilters = (fileType: string, converto: string) => {
-  if (fileType in filters.text && converto in filters.text) {
+  if (converto === "pdf") {
+    return [null, null];
+  } else if (fileType in filters.text && converto in filters.text) {
     return [filters.text[fileType], filters.text[converto]];
   } else if (fileType in filters.calc && converto in filters.calc) {
     return [filters.calc[fileType], filters.calc[converto]];
@@ -148,7 +172,7 @@ export function convert(
   const [inFilter, outFilter] = getFilters(fileType, convertTo);
 
   if (inFilter) {
-    args.push(`--infilter="${inFilter}"`);
+    args.push(`--infilter=${inFilter}`);
   }
 
   if (outFilter) {
@@ -175,3 +199,9 @@ export function convert(
     });
   });
 }
+
+/**
+ * @internal For testing only. Do not use in production.
+ * Tests need direct access to cover all filters.
+ */
+export { filters, getFilters };

@@ -1,16 +1,25 @@
-FROM debian:trixie-slim AS base
+FROM debian:testing-slim AS base
 LABEL org.opencontainers.image.source="https://github.com/NidPlays/Convertx-cc"
 WORKDIR /app
 
 # install bun
 RUN apt-get update && apt-get install -y \
+  ca-certificates \
   curl \
   unzip \
   && rm -rf /var/lib/apt/lists/*
 
-# Install latest Bun
-RUN curl -fsSL https://bun.sh/install | bash && \
-  ln -s /root/.bun/bin/bun /usr/local/bin/bun
+# if architecture is arm64, use the arm64 version of bun
+RUN ARCH=$(uname -m) && \
+  if [ "$ARCH" = "aarch64" ]; then \
+  curl -fsSL -o bun-linux-aarch64.zip https://github.com/oven-sh/bun/releases/download/bun-v1.4.2/bun-linux-aarch64.zip; \
+  else \
+  curl -fsSL -o bun-linux-x64-baseline.zip https://github.com/oven-sh/bun/releases/download/bun-v1.4.2/bun-linux-x64-baseline.zip; \
+  fi
+
+RUN unzip -j bun-linux-*.zip -d /usr/local/bin && \
+  rm bun-linux-*.zip && \
+  chmod +x /usr/local/bin/bun
 
 # install dependencies into temp directory
 # this will cache them and speed up future builds
@@ -36,6 +45,9 @@ RUN bun run build
 FROM base AS release
 
 # install additional dependencies 
+ENV PIPX_HOME=/opt/pipx
+ENV PIPX_BIN_DIR=/usr/local/bin
+
 RUN apt-get update && apt-get install -y \
   assimp-utils \
   calibre \
@@ -44,6 +56,7 @@ RUN apt-get update && apt-get install -y \
   dvisvgm \
   ffmpeg \
   ghostscript \
+  gosu \
   graphicsmagick \
   imagemagick-7.q16 \
   inkscape \
@@ -53,6 +66,7 @@ RUN apt-get update && apt-get install -y \
   libreoffice \
   libva2 \
   libvips-tools \
+  libemail-address-perl \
   libemail-outlook-message-perl \
   lmodern \
   mupdf-tools \
@@ -60,21 +74,29 @@ RUN apt-get update && apt-get install -y \
   poppler-utils \
   potrace \
   python3-numpy \
+  python3-tinycss2 \
   resvg \
   texlive \
   texlive-fonts-recommended \
   texlive-latex-extra \
   texlive-latex-recommended \
   texlive-xetex \
+  python3 \
+  python3-pip \
+  pipx \
   --no-install-recommends \
+  && pipx install "markitdown[all]" \
   && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd -g 1000 convertx && \
+  useradd -u 1000 -g convertx -d /home/convertx -m -s /bin/bash convertx
 
 # Install VTracer binary
 RUN ARCH=$(uname -m) && \
   if [ "$ARCH" = "aarch64" ]; then \
-    VTRACER_ASSET="vtracer-aarch64-unknown-linux-musl.tar.gz"; \
+  VTRACER_ASSET="vtracer-aarch64-unknown-linux-musl.tar.gz"; \
   else \
-    VTRACER_ASSET="vtracer-x86_64-unknown-linux-musl.tar.gz"; \
+  VTRACER_ASSET="vtracer-x86_64-unknown-linux-musl.tar.gz"; \
   fi && \
   curl -L -o /tmp/vtracer.tar.gz "https://github.com/visioncortex/vtracer/releases/download/0.6.4/${VTRACER_ASSET}" && \
   tar -xzf /tmp/vtracer.tar.gz -C /tmp/ && \
@@ -89,8 +111,12 @@ COPY --from=prerelease /app/dist /app/dist
 # COPY . .
 RUN mkdir data
 
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 EXPOSE 3000/tcp
 # used for calibre
 ENV QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox"
 ENV NODE_ENV=production
-ENTRYPOINT [ "bun", "run", "dist/src/index.js" ]
+ENTRYPOINT [ "/entrypoint.sh" ]
+CMD [ "bun", "run", "dist/src/index.js" ]
