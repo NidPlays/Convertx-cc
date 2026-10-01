@@ -1,8 +1,10 @@
-FROM debian:testing-slim AS base
+FROM debian:testing-slim AS debian
 LABEL org.opencontainers.image.source="https://github.com/NidPlays/Convertx-cc"
 WORKDIR /app
 
-# install bun
+# download bun in its own stage so bumping its version does not invalidate
+# the large converter layer in the release stage
+FROM debian AS bun
 RUN apt-get update && apt-get install -y \
   ca-certificates \
   curl \
@@ -20,6 +22,9 @@ RUN ARCH=$(uname -m) && \
 RUN unzip -j bun-linux-*.zip -d /usr/local/bin && \
   rm bun-linux-*.zip && \
   chmod +x /usr/local/bin/bun
+
+FROM debian AS base
+COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 
 # install dependencies into temp directory
 # this will cache them and speed up future builds
@@ -42,7 +47,7 @@ ENV NODE_ENV=production
 RUN bun run build
 
 # copy production dependencies and source code into final image
-FROM base AS release
+FROM debian AS release
 
 # install additional dependencies 
 ENV PIPX_HOME=/opt/pipx
@@ -50,6 +55,8 @@ ENV PIPX_BIN_DIR=/usr/local/bin
 
 RUN apt-get update && apt-get install -y \
   assimp-utils \
+  ca-certificates \
+  curl \
   calibre \
   dasel \
   dcraw \
@@ -104,6 +111,7 @@ RUN ARCH=$(uname -m) && \
   chmod +x /usr/local/bin/vtracer && \
   rm /tmp/vtracer.tar.gz
 
+COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 COPY --from=install /temp/prod/node_modules node_modules
 COPY --from=prerelease /app/public/ /app/public/
 COPY --from=prerelease /app/dist /app/dist
