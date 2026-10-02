@@ -1,3 +1,44 @@
+> [!IMPORTANT]
+> **This is a fork.** ConvertX-cc is an unofficial fork of [C4illin/ConvertX](https://github.com/C4illin/ConvertX). It is not affiliated with or supported by the upstream project. Please report issues with fork-specific features (OIDC login, etc.) here, not upstream. All credit for ConvertX itself goes to the original author and contributors.
+
+## What's different in this fork
+
+This fork tracks upstream `main` and adds **OpenID Connect (OIDC) single sign-on**:
+
+- **Sign in with your identity provider**: works with PocketID, Keycloak, Authentik, and any other standards-compliant OIDC provider (auto-discovered from `OIDC_ISSUER_URL`).
+- **Public and confidential clients**: public clients use Authorization Code + PKCE with no secret; set `OIDC_CLIENT_SECRET` for confidential clients.
+- **Automatic user provisioning**: new users are created on their first OIDC login.
+- **Account linking**: if a local account already exists with the same email, the OIDC identity is linked to it.
+- **OIDC-only mode**: `OIDC_ONLY=true` hides and disables email/password login and registration.
+- **Custom login button**: change the label with `OIDC_BUTTON_TEXT` (e.g. "Sign in with PocketID").
+- **Database migrations**: the password column is nullable for OIDC-only users, and migrations run in order on startup, so existing databases upgrade in place.
+- **Fork image**: published to `ghcr.io/nidplays/convertx-cc` (see [`docker-compose.example.yml`](docker-compose.example.yml)).
+
+Quick start with OIDC:
+
+```yml
+services:
+  convertx:
+    image: ghcr.io/nidplays/convertx-cc:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - OIDC_ISSUER_URL=https://your-provider.example.com
+      - OIDC_CLIENT_ID=your-client-id
+      # - OIDC_CLIENT_SECRET=your-client-secret # only for confidential clients
+      - OIDC_REDIRECT_URI=https://convertx.example.com/callback/oidc
+      - OIDC_BUTTON_TEXT=Sign in with PocketID
+      # - OIDC_ONLY=true # disable email/password login
+    volumes:
+      - ./data:/app/data
+```
+
+Register `OIDC_REDIRECT_URI` (ending in `/callback/oidc`) in your provider's client settings with the `openid`, `email` and `profile` scopes. See [OIDC Authentication](#oidc-authentication-optional) below for details and [OIDC-TESTING.md](OIDC-TESTING.md) for a testing guide.
+
+Everything below this line is the upstream ConvertX README.
+
+---
+
 ![ConvertX](images/logo.png)
 
 # ConvertX
