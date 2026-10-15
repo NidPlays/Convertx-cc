@@ -71,7 +71,14 @@ export async function handleCallback(
   }
 
   try {
-    const tokens = await client.authorizationCodeGrant(config, currentUrl, {
+    // openid-client derives the token request's redirect_uri from this URL. Behind a
+    // reverse proxy the incoming request URL has the internal scheme/host (e.g.
+    // http://localhost:3000), which won't match the registered redirect URI and the
+    // provider rejects the code exchange. Rebuild it from OIDC_REDIRECT_URI instead.
+    const callbackUrl = new URL(OIDC_REDIRECT_URI);
+    callbackUrl.search = currentUrl.search;
+
+    const tokens = await client.authorizationCodeGrant(config, callbackUrl, {
       expectedState,
       expectedNonce,
       pkceCodeVerifier,
