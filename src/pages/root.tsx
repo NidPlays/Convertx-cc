@@ -55,7 +55,7 @@ export const root = new Elysia().use(userService).get(
         httpOnly: true,
         secure: !HTTP_ALLOWED,
         maxAge: 24 * 60 * 60,
-        sameSite: "lax",
+        sameSite: "strict",
       });
     } else if (auth?.value) {
       user = await jwt.verify(auth.value);
@@ -100,7 +100,7 @@ export const root = new Elysia().use(userService).get(
       httpOnly: true,
       secure: !HTTP_ALLOWED,
       maxAge: 24 * 60 * 60,
-      sameSite: "lax", // Use "lax" to work properly with OIDC login flow
+      sameSite: "strict",
     });
 
     return (
