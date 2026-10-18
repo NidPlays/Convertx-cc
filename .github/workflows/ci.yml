@@ -32,3 +32,6 @@ jobs:
 
       - name: Check for type errors
         run: bun run lint:tsc
+
+      - name: Run unit tests
+        run: bun run test
